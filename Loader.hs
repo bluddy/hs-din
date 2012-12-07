@@ -9,6 +9,7 @@ module Loader (
         -- methods
         , fullFileMap
         , findPath
+        , readPath
        ) where
 
 import System.Directory(getDirectoryContents)
