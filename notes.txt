@@ -1,0 +1,45 @@
+black.dds: 2176 - 88 = 2088
+black.ctx: 2827 - 20 = 2807
+	64 x 64 = 16 * 16 * 8 = 2048	
+
+2811 is reported size. Subtract 723
+
+DXT5,3, blocksize = 16
+DXT1, blocksize = 1
+size: (w+3)/4 * (h+3)/4 * blockSize
+
+DDS file:
+
+struct D3D_PixelFormat // DDPIXELFORMAT
+{
+int dwSize;
+int dwFlags;
+int dwFourCC;
+int dwRGBBitCount;
+int dwRBitMask, dwGBitMask, dwBBitMask;
+int dwRGBAlphaBitMask;
+};
+
+struct D3D_Caps2
+{
+int dwCaps1;
+int dwCaps2;
+int Reserved[2];
+};
+
+struct D3D_SurfaceDesc2
+{
+int magic;
+int dwSize;
+int dwFlags;
+int dwHeight;
+int dwWidth;
+int dwPitchOrLinearSize;
+int dwDepth;
+int dwMipMapCount;
+int dwReserved1[11];
+D3D_PixelFormat ddpfPixelFormat;
+D3D_Caps2 ddsCaps;
+int dwReserved2;
+};
+

@@ -1,7 +1,7 @@
 module Main where 
 
 import Graphics.Rendering.OpenGL as GL
-import Graphics.UI.GLFW as GLFW
+import qualified Graphics.UI.GLFW as GLFW
 import Graphics.Rendering.OpenGL (($=))
 import Data.IORef
 import Control.Monad
@@ -12,6 +12,8 @@ import qualified Texture as T
 import Graphics.Rendering.OpenGL.Raw.EXT.TextureCompressionS3tc
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr)
+import qualified Data.ByteString.Lazy.Char8 as B
+import Data.Char (toUpper)
 
 data Action = Action (IO Action)
 
@@ -37,6 +39,7 @@ main' path = do
   -- set the color to clear background
   GL.clearColor $= Color4 0 0 0 0
   GL.clearDepth $= 1  -- enable depth clearing
+  GL.texture Texture2D $= Enabled
  
   -- set 2D orthogonal view inside windowSizeCallback because
   -- any change to the Window size should result in different
@@ -50,7 +53,8 @@ main' path = do
   -- load file hierarchy
   filemap <- L.fullFileMap
   fileStr <- L.readPath filemap path
-  tex <- loadGLTextures fileStr
+  let ext = map toUpper $ drop (length path - length "xxx") path
+  tex <- loadGLTextures fileStr ext
   {-putStrLn $ show file-}
 
   -- run the main loop
@@ -60,7 +64,13 @@ main' path = do
   GLFW.terminate
 
 -- load a texture
-loadGLTextures fileStr = do
+loadGLTextures fileStr ext = 
+  case ext of 
+    "CTX" -> loadCompressedTextures fileStr
+    "TGA" -> loadUncompressedTextures fileStr
+    _      -> ioError $ userError $ "Don't know how to read " ++ ext ++ " file"
+
+loadCompressedTextures fileStr = do
   let t = R.readTexture fileStr
   putStrLn $ show t
   {-(Image (Size w h) pd) <- bitmapLoad "Data/NeHe.bmp"-}
@@ -68,11 +78,21 @@ loadGLTextures fileStr = do
   textureBinding Texture2D $= Just texName
   textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
   {-texImage2D Nothing NoProxy 0 RGB' (TextureSize2D w h) 0 pd-}
-  let f = GL.CompressedTextureFormat gl_COMPRESSED_RGBA_S3TC_DXT5  
+  let f = GL.CompressedTextureFormat gl_COMPRESSED_RGBA_S3TC_DXT1
   withForeignPtr (T.ptr t) $ \ptr -> do
-    let adjustedPtr = ptr `plusPtr` (T.offset t)
-    let c = GL.CompressedPixelData f (fromIntegral $ T.size t) ptr
+    let move = 4
+        size = 16 * 16 * 8
+    let adjustedPtr = ptr `plusPtr` move
+    {-let c = GL.CompressedPixelData f (fromIntegral $ T.size t) ptr-}
+    let c = GL.CompressedPixelData f (fromIntegral size) adjustedPtr
     compressedTexImage2D Nothing NoProxy 0 (TextureSize2D (fromIntegral $ T.width t) (fromIntegral $ T.height t)) 0 c
+  return texName
+
+loadUncompressedTextures fileStr = do
+  texName <- liftM head (genObjectNames 1)
+  GL.textureBinding GL.Texture2D $= Just texName
+  GL.textureFilter GL.Texture2D $= ((GL.Nearest, Nothing), GL.Nearest)
+  GLFW.loadMemoryTexture2D (B.unpack fileStr) []
   return texName
 
 -- we start with waitForPress action
@@ -94,7 +114,7 @@ run tex = loop waitForPress
             GLFW.sleep 0.001
  
             -- only continue when the window is not closed
-            windowOpen <- getParam Opened
+            windowOpen <- GLFW.getParam GLFW.Opened
             unless (not windowOpen) $
               loop action' -- loop with next action
  
