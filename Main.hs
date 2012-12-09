@@ -7,6 +7,11 @@ import Data.IORef
 import Control.Monad
 import System.Environment (getArgs, getProgName)
 import qualified Loader as L
+import qualified Reader as R
+import qualified Texture as T
+import Graphics.Rendering.OpenGL.Raw.EXT.TextureCompressionS3tc
+import Foreign.ForeignPtr (withForeignPtr)
+import Foreign.Ptr (plusPtr)
 
 data Action = Action (IO Action)
 
@@ -45,8 +50,9 @@ main' path = do
   lines <- newIORef []
   -- load file hierarchy
   filemap <- L.fullFileMap
-  file <- L.readPath filemap path
-  putStrLn $ show file
+  fileStr <- L.readPath filemap path
+  texName <- loadGLTextures fileStr
+  {-putStrLn $ show file-}
 
   -- run the main loop
   run lines
@@ -54,6 +60,21 @@ main' path = do
   GLFW.closeWindow
   GLFW.terminate
 
+-- load a texture
+loadGLTextures fileStr = do
+  let t = R.readTexture fileStr
+  putStrLn $ show t
+  {-(Image (Size w h) pd) <- bitmapLoad "Data/NeHe.bmp"-}
+  texName <- liftM head (genObjectNames 1)
+  textureBinding Texture2D $= Just texName
+  textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
+  {-texImage2D Nothing NoProxy 0 RGB' (TextureSize2D w h) 0 pd-}
+  let f = GL.CompressedTextureFormat gl_COMPRESSED_RGBA_S3TC_DXT5  
+  withForeignPtr (T.ptr t) $ \ptr -> do
+    let adjustedPtr = ptr `plusPtr` (T.offset t)
+    let c = GL.CompressedPixelData f (fromIntegral $ T.size t) ptr
+    compressedTexImage2D Nothing NoProxy 0 (TextureSize2D (fromIntegral $ T.width t) (fromIntegral $ T.height t)) 0 c
+  return texName
 
 -- we start with waitForPress action
 run lines = loop waitForPress
