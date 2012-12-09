@@ -36,6 +36,7 @@ main' path = do
   GL.lineWidth  $= 1.5
   -- set the color to clear background
   GL.clearColor $= Color4 0 0 0 0
+  GL.clearDepth $= 1  -- enable depth clearing
  
   -- set 2D orthogonal view inside windowSizeCallback because
   -- any change to the Window size should result in different
@@ -46,16 +47,14 @@ main' path = do
       GL.matrixMode $= GL.Projection
       GL.loadIdentity
       GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
-  -- keep all line strokes as a list of points in an IORef
-  lines <- newIORef []
   -- load file hierarchy
   filemap <- L.fullFileMap
   fileStr <- L.readPath filemap path
-  texName <- loadGLTextures fileStr
+  tex <- loadGLTextures fileStr
   {-putStrLn $ show file-}
 
   -- run the main loop
-  run lines
+  run tex
   -- finish up
   GLFW.closeWindow
   GLFW.terminate
@@ -77,12 +76,12 @@ loadGLTextures fileStr = do
   return texName
 
 -- we start with waitForPress action
-run lines = loop waitForPress
+run tex = loop waitForPress
   where 
  
     loop action = do
       -- draw the entire screen
-      render lines
+      render tex
       -- swap buffer
       GLFW.swapBuffers
       -- check whether ESC is pressed for termination
@@ -107,7 +106,6 @@ run lines = loop waitForPress
           -- when left mouse button is pressed, add the point
           -- to lines and switch to waitForRelease action.
           (GL.Position x y) <- GL.get GLFW.mousePos 
-          modifyIORef lines (((x,y):) . ((x,y):))
           return (Action waitForRelease)
  
     waitForRelease = do
@@ -115,7 +113,6 @@ run lines = loop waitForPress
         -- release
         (GL.Position x y) <- GL.get GLFW.mousePos
         -- update the line with new ending position
-        modifyIORef lines (((x,y):) . tail)
         b <- GLFW.getMouseButton GLFW.ButtonLeft
         case b of
           -- when button is released, switch back back to 
@@ -123,12 +120,21 @@ run lines = loop waitForPress
           GLFW.Release -> return (Action waitForPress)
           GLFW.Press   -> return (Action waitForRelease)
 
-render lines = do
-  l <- readIORef lines
-  GL.clear [GL.ColorBuffer]
-  GL.color $ color3 1 0 0
-  GL.renderPrimitive GL.Lines $ mapM_
-      (\ (x, y) -> GL.vertex (vertex3 (fromIntegral x) (fromIntegral y) 0)) l
+render tex = do
+  GL.clear [GL.ColorBuffer, GL.DepthBuffer]
+  GL.color $ color3 1 1 1
+  GL.loadIdentity
+
+  GL.textureBinding Texture2D $= Just tex
+  GL.renderPrimitive GL.Quads $ do
+       GL.texCoord (GL.TexCoord2 0 (0::GLfloat))
+       GL.vertex (GL.Vertex3 (-1) (-1) (1::GLfloat)) -- bottom left of quad (Front)
+       GL.texCoord (GL.TexCoord2 1 (0::GLfloat))
+       GL.vertex (GL.Vertex3 1 (-1) (1::GLfloat)) -- bottom right of quad (Front)
+       GL.texCoord (GL.TexCoord2 1 (1::GLfloat))
+       GL.vertex (GL.Vertex3 1 1 (1::GLfloat)) -- top right of quad (Front)
+       GL.texCoord (GL.TexCoord2 0 (1::GLfloat))
+       GL.vertex (GL.Vertex3 (-1) 1 (1::GLfloat)) -- top left of quad (Front) 
  
  
 vertex3 :: GLfloat -> GLfloat -> GLfloat -> GL.Vertex3 GLfloat
