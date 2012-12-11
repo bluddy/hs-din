@@ -7,9 +7,7 @@ import Data.IORef
 import Control.Monad
 import System.Environment (getArgs, getProgName)
 import qualified Loader as L
-import qualified Reader as R
-import qualified Texture as T
-import Graphics.Rendering.OpenGL.Raw.EXT.TextureCompressionS3tc
+import qualified CompressedTexture as T
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr)
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -53,8 +51,8 @@ main' path = do
   -- load file hierarchy
   filemap <- L.fullFileMap
   fileStr <- L.readPath filemap path
-  let ext = map toUpper $ drop (length path - length "xxx") path
-  tex <- loadGLTextures fileStr ext
+  let ext = fileExt path
+  tex <- loadGLTexture fileStr ext 
   {-putStrLn $ show file-}
 
   -- run the main loop
@@ -64,31 +62,12 @@ main' path = do
   GLFW.terminate
 
 -- load a texture
-loadGLTextures fileStr ext = 
-  case ext of 
-    "CTX" -> loadCompressedTextures fileStr
-    "TGA" -> loadUncompressedTextures fileStr
-    _      -> ioError $ userError $ "Don't know how to read " ++ ext ++ " file"
+loadGLTexture fileStr "CTX" = T.loadCompressedTexture fileStr
+loadGLTexture fileStr "TGA" = loadUncompressedTexture fileStr
+loadGLTexture fileStr ext   = ioError $ userError 
+    $ "Don't know how to read " ++ ext ++ " file"
 
-loadCompressedTextures fileStr = do
-  let t = R.readTexture fileStr
-  putStrLn $ show t
-  {-(Image (Size w h) pd) <- bitmapLoad "Data/NeHe.bmp"-}
-  texName <- liftM head (genObjectNames 1)
-  textureBinding Texture2D $= Just texName
-  textureFilter Texture2D $= ((Nearest, Nothing), Nearest)
-  {-texImage2D Nothing NoProxy 0 RGB' (TextureSize2D w h) 0 pd-}
-  let f = GL.CompressedTextureFormat gl_COMPRESSED_RGBA_S3TC_DXT1
-  withForeignPtr (T.ptr t) $ \ptr -> do
-    let move = 4
-        size = 16 * 16 * 8
-    let adjustedPtr = ptr `plusPtr` move
-    {-let c = GL.CompressedPixelData f (fromIntegral $ T.size t) ptr-}
-    let c = GL.CompressedPixelData f (fromIntegral size) adjustedPtr
-    compressedTexImage2D Nothing NoProxy 0 (TextureSize2D (fromIntegral $ T.width t) (fromIntegral $ T.height t)) 0 c
-  return texName
-
-loadUncompressedTextures fileStr = do
+loadUncompressedTexture fileStr = do
   texName <- liftM head (genObjectNames 1)
   GL.textureBinding GL.Texture2D $= Just texName
   GL.textureFilter GL.Texture2D $= ((GL.Nearest, Nothing), GL.Nearest)
@@ -156,6 +135,7 @@ render tex = do
        GL.texCoord (GL.TexCoord2 0 (1::GLfloat))
        GL.vertex (GL.Vertex3 (-1) 1 (1::GLfloat)) -- top left of quad (Front) 
  
+fileExt filename = map toUpper $ drop (length filename - length "xxx") filename
  
 vertex3 :: GLfloat -> GLfloat -> GLfloat -> GL.Vertex3 GLfloat
 vertex3 = GL.Vertex3
