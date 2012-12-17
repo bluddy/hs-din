@@ -7,7 +7,7 @@ import Data.IORef
 import Control.Monad
 import System.Environment (getArgs, getProgName)
 import qualified Loader as L
-import qualified CompressedTexture as T
+import qualified Texture as T
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr)
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -52,7 +52,7 @@ main' path = do
   filemap <- L.fullFileMap
   fileStr <- L.readPath filemap path
   let ext = fileExt path
-  tex <- loadGLTexture fileStr ext 
+  tex <- T.loadGLTexture fileStr ext 
   {-putStrLn $ show file-}
 
   -- run the main loop

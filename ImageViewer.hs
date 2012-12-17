@@ -7,7 +7,7 @@ import Data.IORef
 import Control.Monad
 import System.Environment (getArgs, getProgName)
 import qualified Loader as L
-import qualified CompressedTexture as T
+import qualified Texture as T
 import Foreign.ForeignPtr (withForeignPtr)
 import Foreign.Ptr (plusPtr)
 import qualified Data.ByteString.Lazy.Char8 as B
@@ -52,7 +52,7 @@ main' path = do
   filemap <- L.fullFileMap
   fileStr <- L.readPath filemap path
   let ext = fileExt path
-  tex <- loadGLTexture fileStr ext 
+  tex <- T.loadGLTexture fileStr ext 
   {-putStrLn $ show file-}
 
   -- run the main loop
@@ -60,19 +60,6 @@ main' path = do
   -- finish up
   GLFW.closeWindow
   GLFW.terminate
-
--- load a texture
-loadGLTexture fileStr "CTX" = T.loadCompressedTexture fileStr
-loadGLTexture fileStr "TGA" = loadUncompressedTexture fileStr
-loadGLTexture fileStr ext   = ioError $ userError 
-    $ "Don't know how to read " ++ ext ++ " file"
-
-loadUncompressedTexture fileStr = do
-  texName <- liftM head (genObjectNames 1)
-  GL.textureBinding GL.Texture2D $= Just texName
-  GL.textureFilter GL.Texture2D $= ((GL.Nearest, Nothing), GL.Nearest)
-  GLFW.loadMemoryTexture2D (B.unpack fileStr) []
-  return texName
 
 -- we start with waitForPress action
 run tex = loop waitForPress
