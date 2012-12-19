@@ -27,39 +27,30 @@ data Model = Model {dir::Directory,
 filePath :: Parser String
 filePath = many1 $ alphaNum <|> char '/'
 
-spaces1 :: Parser String
-spaces1 = many1 space
-
-{-eol =    try (string "\n\r")-}
-    {-<|>  try (string "\r\n")-}
-    {-<|>  string "\n"-}
-    {-<|>  string "\r"-}
-    {-<?>  "end of line"-}
-
-parsePath :: String -> Parse String
-parsePath text = spaces *> string text *> spaces *> filePath
+parsePath :: String -> Parser String
+parsePath text = string text *> spaces *> filePath <* spaces
 
 parseModel :: Parser Model
 parseModel = do 
-    let a' = Model "" "" "" Nothing "" "" []
-    dir <- parsePath "dir" 
-    let a = a' {dir=dir}
-    skeleton <- parsePath "skeleton"
-    let b = a {skeleton=skeleton}
-    mesh <- parsePath "mesh"
-    let c = b {mesh=mesh}
-    skin <- parsePath "skin"
-    let d = c {skin=skin}
-    tags <- optionMaybe $ parsePath "tags"
-    let e = d {tags=tags}
-    animations <- parseAnimations
-    let f = e {animations=animations}
-    return f
+    let model = Model "" "" "" Nothing "" "" []
+    loop model 
+        where loop a = do
+                a' <- choice [
+                        do {x <- parsePath "dir"; return a {dir=x}},
+                        do {x <- parsePath "skeleton"; return a {skeleton=x}},
+                        do {x <- parsePath "mesh"; return a {mesh=x}},
+                        do {x <- parsePath "tags"; return a {tags=Just x}},
+                        do {x <- parsePath "skin"; return a {skin=x}},
+                        do {x <- parsePath "objectType"; return a {objectType=x}}
+                      ]
+                isEof <- option False (eof *> return True)
+                if isEof then return a'
+                else loop a'
 
 doParse :: String -> Model
 doParse file = let s = concat $ L.intersperse " " $ lines $ file
     in case parse parseModel "?" s of
-      Left err -> error "Failed to parse"
+      Left err -> error $ show err
       Right m -> m
     
     
