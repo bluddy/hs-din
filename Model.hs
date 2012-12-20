@@ -2,11 +2,15 @@ module Model where
 
 import Text.Parsec
 import Text.Parsec.String
+import Text.Parsec.Perm
+import Data.Functor ((<$>))
+import Data.Char (toLower)
+import Control.Applicative hiding ((<|>), many, optional)
+import qualified Data.ByteString.Lazy.Char8 as BLC
+import qualified Data.List as List
 import qualified Animation as A
 import qualified Loader as L
-import Data.Functor
-import Control.Applicative hiding ((<|>), many, optional)
-import qualified Data.List as L
+import qualified Parser as P
 
 type Directory = String
 type FileName = String
@@ -16,44 +20,47 @@ data Model = Model {dir::Directory,
               mesh::FileName,
               tags::Maybe FileName,
               skin::FileName,
-              objectType::String,
+              objectType::Maybe String,
               animations::[A.Animation]
               } deriving Show
 
-{-parseFile file = do-}
-    {-filemap <- L.fullFileMap-}
-    {-fileStr <- L.readPath filemap file-}
-
-filePath :: Parser String
-filePath = many1 $ alphaNum <|> char '/'
-
 parsePath :: String -> Parser String
-parsePath text = string text *> spaces *> filePath <* spaces
+parsePath text = string text *> P.s *> P.filePath
+
+parseAnims :: Parser [A.Animation]
+parseAnims = many parseA
+               where parseA = do
+                         a <- A.parseAnimation
+                         return a
 
 parseModel :: Parser Model
 parseModel = do 
-    let model = Model "" "" "" Nothing "" "" []
-    loop model 
-        where loop a = do
-                a' <- choice [
-                        do {x <- parsePath "dir"; return a {dir=x}},
-                        do {x <- parsePath "skeleton"; return a {skeleton=x}},
-                        do {x <- parsePath "mesh"; return a {mesh=x}},
-                        do {x <- parsePath "tags"; return a {tags=Just x}},
-                        do {x <- parsePath "skin"; return a {skin=x}},
-                        do {x <- parsePath "objectType"; return a {objectType=x}}
-                      ]
-                isEof <- option False (eof *> return True)
-                if isEof then return a'
-                else loop a'
+    P.n
+    permute $ Model 
+            <$$> parsePath "dir" <* P.n
+            <||> try (parsePath "skeleton" <* P.n)
+            <||> parsePath "mesh" <* P.n
+            <|?> (Nothing, Just <$> parsePath "tags" <* P.n)
+            <||> try (parsePath "skin" <* P.n)
+            <|?> (Nothing, Just <$> parsePath "objecttype" <* P.n)
+            <||> do string "animations" *> P.n *> char '{' *> P.n
+                    a <- parseAnims
+                    P.n *> char '}'
+                    return a
 
 doParse :: String -> Model
-doParse file = let s = concat $ L.intersperse " " $ lines $ file
+doParse text = 
+    let s = P.uncomment $ map toLower text
     in case parse parseModel "?" s of
       Left err -> error $ show err
       Right m -> m
     
-    
+parseFile :: FileName -> IO String
+parseFile path = do
+    fileMap <- L.fullFileMap
+    fileStr <- L.readPath fileMap path
+    let model = doParse (BLC.unpack fileStr)
+    return $ show model
              
     
     
