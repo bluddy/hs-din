@@ -47,4 +47,3 @@ name = many1 $ alphaNum <|> char '_'
 
 integer :: Parser Int
 integer = read <$> (many1 $ digit)
-
