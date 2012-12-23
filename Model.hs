@@ -1,5 +1,6 @@
 module Model where
 
+import Global
 import Text.Parsec
 import Text.Parsec.String
 import Text.Parsec.Perm
@@ -11,9 +12,6 @@ import qualified Data.List as List
 import qualified Animation as A
 import qualified Loader as L
 import qualified Parser as P
-
-type Directory = String
-type FileName = String
 
 data Model = Model {dir::Directory,
               skeleton::FileName,
