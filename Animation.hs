@@ -15,8 +15,8 @@ data Index = Num Int
              deriving Show
 
 parseIndex :: Parser Index
-parseIndex = string "entry" *> return Entry
-               <|> string "exit" *> return Exit
+parseIndex = P.strC "entry" *> return Entry
+               <|> P.strC "exit" *> return Exit
                <|> (P.integer >>= \i -> return $ Num i)
 
 
@@ -31,13 +31,13 @@ data Tag = Origin
 
 parseTag :: Parser Tag
 parseTag = choice [
-            string "origin" *> return Origin,
-            try(string "tag_righthand" *> return TagRightHand),
-            try(string "tag_lefthand" *> return TagLeftHand),
-            try(string "tag_rightfoot" *> return TagRightFoot),
-            try(string "tag_leftfoot" *> return TagLeftFoot),
-            try(string "tag_chest" *> return TagChest),
-            try(string "tag_helmet" *> return TagHelmet)
+            P.strC "origin" *> return Origin,
+            try(P.strC "tag_righthand" *> return TagRightHand),
+            try(P.strC "tag_lefthand" *> return TagLeftHand),
+            try(P.strC "tag_rightfoot" *> return TagRightFoot),
+            try(P.strC "tag_leftfoot" *> return TagLeftFoot),
+            try(P.strC "tag_chest" *> return TagChest),
+            try(P.strC "tag_helmet" *> return TagHelmet)
            ]
 
 data ServerAction = SkillMarker
@@ -48,8 +48,8 @@ parseServerAction :: Parser (Index, ServerAction)
 parseServerAction = do
     index <- parseIndex <* P.s
     action <- choice [
-        string "skillmarker" *> return SkillMarker,
-        string "attackmarker" *> return AttackMarker 
+        P.strC "skillmarker" *> return SkillMarker,
+        P.strC "attackmarker" *> return AttackMarker 
        ]
     return (index, action)
 
@@ -75,11 +75,11 @@ parseClientAction = do
     return (index, action)
 
         where hasTag name cons = do
-                path <- string name *> P.s *> P.filePath <* P.s
+                path <- P.strC name *> P.s *> P.filePath <* P.s
                 tag <- parseTag
                 return $ cons path tag
               hasPath name cons = do 
-                path <- string name *> P.s *> P.filePath
+                path <- P.strC name *> P.s *> P.filePath
                 return $ cons path
 
 data AnimationMod = MatchMoveSpeed
@@ -90,9 +90,9 @@ data AnimationMod = MatchMoveSpeed
 parseMod :: Parser AnimationMod
 parseMod = 
     choice [
-        try(string "matchmovespeed" *> return MatchMoveSpeed),
-        try(string "matchattackspeed" *> return MatchAttackSpeed),
-        try(string "matchskillspeed" *> return MatchSkillSpeed)
+        try(P.strC "matchmovespeed" *> return MatchMoveSpeed),
+        try(P.strC "matchattackspeed" *> return MatchAttackSpeed),
+        try(P.strC "matchskillspeed" *> return MatchSkillSpeed)
        ]
 
 data Animation = Animation {name::String,
@@ -110,7 +110,7 @@ parseClient :: Parser [(Index, ClientAction)]
 parseClient = parseBlock "client" parseClientAction
 
 parseBlock text parser = do 
-    string text *> P.n
+    P.strC text *> P.n
     char '{' *> P.n
     a <- many1 (parser <* P.n) 
     char '}'

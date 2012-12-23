@@ -1,4 +1,4 @@
 module Global where
 
 type Directory = String
-type Filename = String
+type FileName = String

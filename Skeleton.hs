@@ -22,15 +22,9 @@ parseJoints s = runGet get s
             magic2 <- getWord32le
             if magic2 /= 0xFFFFFFFF then error $ "Bad magic2 " ++ show magic2
             else case num of
-                1 -> do
-                    offset <- getWord32le
-                    cur <- bytesRead
-                    if fromIntegral offset /= cur then offsetError offset cur
-                    else do
-                        str <- getLazyByteStringNul
-                        return [(0, BLC.unpack str, -1)]
+                1 -> return []
                 _ -> do
-                    let r = [1..num-1]
+                    let r = [0..num-2]
                     originOffset <- getWord32le
                     r' <- mapM readPoint r
                     cur <- bytesRead
@@ -39,7 +33,7 @@ parseJoints s = runGet get s
                     else do
                         originStr <- getLazyByteStringNul
                         r'' <- mapM readString r'
-                        return $ (0,BLC.unpack originStr,(-1)):r''
+                        return $ r''
                             where readPoint i = do
                                     joint <- getWord32le
                                     offset <- getWord32le
@@ -53,20 +47,12 @@ parseJoints s = runGet get s
                                         return (fromIntegral i, 
                                             BLC.unpack str, fromIntegral joint)
 
-jointsToBones :: [(Int, String, Int)] -> [Bone]
-jointsToBones js = map toBone js
-    where toBone (bone, str, joint) = 
-            let touching = filter (\(b,_,j) -> j == joint && b /= bone) js
-                touching' = map (\(b,_,_) -> b) touching
-            in (bone, str, touching')
-        
-parseFile :: Filename -> IO String
+parseFile :: FileName -> IO String
 parseFile path = do
     fileMap <- L.fullFileMap
     fileStr <- L.readPath fileMap path
     let js = parseJoints fileStr
-        bs = jointsToBones js
-    return $ show bs
+    return $ show js
             
 
 

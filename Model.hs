@@ -23,7 +23,7 @@ data Model = Model {dir::Directory,
               } deriving Show
 
 parsePath :: String -> Parser String
-parsePath text = string text *> P.s *> P.filePath
+parsePath text = P.strC text *> P.s *> P.filePath
 
 parseAnims :: Parser [A.Animation]
 parseAnims = many parseA
@@ -41,14 +41,14 @@ parseModel = do
             <|?> (Nothing, Just <$> parsePath "tags" <* P.n)
             <||> try (parsePath "skin" <* P.n)
             <|?> (Nothing, Just <$> parsePath "objecttype" <* P.n)
-            <||> do string "animations" *> P.n *> char '{' *> P.n
+            <||> do P.strC "animations" *> P.n *> char '{' *> P.n
                     a <- parseAnims
                     P.n *> char '}'
                     return a
 
 doParse :: String -> Model
 doParse text = 
-    let s = P.uncomment $ map toLower text
+    let s = P.uncomment text
     in case parse parseModel "?" s of
       Left err -> error $ show err
       Right m -> m
