@@ -6,13 +6,14 @@ import Data.Binary.Get
 import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Loader as L
 
-type Bone = (Int, String, [Int])
+type Bone = (Int, String, Int)
+type Skeleton = [Bone]
 
 offsetError offset cur = error $ "Offset " ++ show offset 
     ++ " not equal to " ++ show cur
 
-parseJoints :: BLC.ByteString -> [(Int, String, Int)]
-parseJoints s = runGet get s
+parseSkel :: BLC.ByteString -> Skeleton
+parseSkel s = runGet get s
   where get = do
         magic <- getWord32le
         if magic /= 0x12121212 then error $ "Bad magic1 " ++ show magic
@@ -51,7 +52,7 @@ parseFile :: FileName -> IO String
 parseFile path = do
     fileMap <- L.fullFileMap
     fileStr <- L.readPath fileMap path
-    let js = parseJoints fileStr
+    let js = parseSkel fileStr
     return $ show js
             
 

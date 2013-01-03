@@ -5,23 +5,32 @@ import Data.Binary.Get
 import qualified Data.ByteString.Lazy.Char8 as BLC
 import qualified Loader as L
 import Data.Functor ((<$>))
+import qualified Data.List as List
+import qualified CastFloat as CF
+
+type Offset = (Float, Float, Float)
+type Bone = (Int, Double)
 
 data Mesh = Mesh {
             surfaces::[Surface],
-            meshNumV::Int,
-            vertexOffsets::StorableArray GLfloat,
-            vertexBones::UArray (Int, Double) -- bone index, weight
-           }
+            vertexOffsets::[Offset],
+            vertexBones::[Bone] -- bone index, weight
+           } deriving Show
+
+type Tri = (Int, Int, Int)
+type Normal = (Float, Float, Float)
+type UV = (Float, Float)
+type VertData = (Int, Int) -- Numbones, Firstbone
 
 data Surface = Surface {
             surfaceNum::Int,
             surfNumV::Int,
             surfNumT::Int,
-            tris::StorableArray GLint, -- triangles
-            normals::StorableArray GLfloat,
-            textureCoords::StorableArray GLfloat,
-            collapseMap::[Int]
-           }
+            tris::[Tri],
+            normals::[Normal],
+            textureCoords::[UV],
+            vertData::[VertData]
+           } deriving Show
 
 offsetError offset cur = error $ "Offset " ++ show offset 
     ++ " not equal to " ++ show cur
@@ -32,106 +41,119 @@ parseMesh s = runGet get s
         magic <- getWord32le
         if magic /= 0x12121212 then error $ "Bad magic1 " ++ show magic
         else do
-          version <- getWord32le
-          numSurfaces <- getWord32le
-          numTris <- getWord32le
-          numVerts <- getWord32le
-          surfaceOffset <- getWord32le
-          trisOffset <- getWord32le
-          vertsOffset <- getWord32le
-          weightsOffset <- getWord32le
+          version <- fromIntegral <$> getWord32le
+          numSurfaces <- fromIntegral <$> getWord32le
+          numTris <- fromIntegral <$> getWord32le
+          numVerts <- fromIntegral <$> getWord32le
+          surfaceOffset <- fromIntegral <$> getWord32le
+          trisOffset <- fromIntegral <$> getWord32le
+          vertsOffset <- fromIntegral <$> getWord32le
+          weightsOffset <- fromIntegral <$> getWord32le
+          b <- bytesRead
           collapseOffset <-
-            if bytesRead == surfaceOffset
+            if b == fromIntegral surfaceOffset
             then return Nothing
-            else do 
-              c <- getWord32le
-              return Just c
-          if bytesRead /= surfaceOffset 
-          then offsetError surfaceOffset bytesRead 
+            else Just <$> getWord32le
+          b <- bytesRead
+          if b /= fromIntegral surfaceOffset 
+          then offsetError surfaceOffset b 
           else do
             surfaces <- mapM (parseSurface collapseOffset) [1..numSurfaces]
-            if bytesRead /= trisOffset
-            then offsetError trisOffset bytesRead
+            b <- bytesRead
+            if b /= fromIntegral trisOffset
+            then offsetError trisOffset b
             else do
               tris <- mapM parseTris surfaces
-              if bytesRead /= vertsOffset
-              then offsetError vertsOffset bytesRead
+              b <- bytesRead
+              if b /= fromIntegral vertsOffset
+              then offsetError vertsOffset b
               else do
                 verts <- mapM parseVertices surfaces
-                let numWeights = foldl (\acc (_,_,_,_,_,i,_) -> acc + i) 0 verts
-                if bytesRead /= weightsOffset
-                then offsetError weightsOffset bytesRead
+                let numWeights = foldl (\acc v -> 
+                                    foldl (\acc' (_,_,i,_) -> acc' + i) acc v)
+                                    0 verts
+                b <- bytesRead
+                if b /= fromIntegral weightsOffset
+                then offsetError weightsOffset b
                 else do
                   weights <- mapM parseWeight [1..numWeights]
+                  b <- bytesRead
                   collapse <- 
                     case collapseOffset of
-                        Just x | x /= bytesRead -> offsetError x bytesRead
-                               | x == bytesRead -> 
-                                   mapM parseCollapses surface
-                        Nothing -> Nothing
-                return $ createMesh surfaces tris verts weights collapse
+                        Just x | fromIntegral x /= b -> offsetError x b
+                               | otherwise -> 
+                                   Just <$> mapM parseCollapses surfaces
+                        Nothing -> return Nothing
+                  return $ createMesh surfaces tris verts weights collapse
                   
+parseSurface :: Maybe a -> a -> Get (Int, Int, Int, Int, Int, Maybe Int)
 parseSurface c _ = do
-    surfaceNum <- getWord32le
-    numVerts <- getWord32le
-    numTris <- getWord32le
-    vertsOffset <- getWord32le
-    trisOffset <- getWord32le
+    surfaceNum <- fromIntegral <$> getWord32le
+    numVerts <- fromIntegral <$> getWord32le
+    numTris <- fromIntegral <$> getWord32le
+    vertsOffset <- fromIntegral <$> getWord32le
+    trisOffset <- fromIntegral <$> getWord32le
     collapseOffset <- case c of
-        Nothing -> Nothing
-        _       -> Just <$> getWord32le
+        Nothing -> return Nothing
+        _       -> Just . fromIntegral <$> getWord32le
     return 
        (surfaceNum, numVerts, numTris, vertsOffset, trisOffset, collapseOffset)
 
-parseTris (_,_,n,_,_,_) = mapM parseTris [1..n]
+parseTris (_,_,n,_,_,_) = mapM parseTri [1..n]
 
-parseTri :: a -> Get (Int,Int,Int)
+parseTri :: a -> Get Tri
 parseTri _ = do
-    x <- getWord32le
-    y <- getWord32le
-    z <- getWord32le
-    return (x,y,z)
+    x <- fromIntegral <$> getWord32le
+    y <- fromIntegral <$> getWord32le
+    z <- fromIntegral <$> getWord32le
+    return (x, y, z)
 
 parseVertices (_,n,_,_,_,_) = mapM parseVertex [1..n]
 
-parseVertex = a -> Get (Float, Float, Float, Float, Float, Int, Int)
+parseVertex :: a -> Get (UV, Normal, Int, Int)
 parseVertex _ = do
-    u <- getWord32le
-    v <- getWord32le
-    x <- getWord32le
-    y <- getWord32le
-    z <- getWord32le
-    numBones <- getWord32le
-    firstBone <- getWord32le
-    return (u,v,x,y,z,numBones,firstBone)
+    u <- CF.wordToFloat <$> getWord32le
+    v <- CF.wordToFloat <$> getWord32le
+    x <- CF.wordToFloat <$> getWord32le
+    y <- CF.wordToFloat <$> getWord32le
+    z <- CF.wordToFloat <$> getWord32le
+    numBones <- fromIntegral <$> getWord32le
+    firstBone <- fromIntegral <$> getWord32le
+    return ((u,v),(x,y,z),numBones,firstBone)
 
-parseWeight :: a -> (Int, Float, Float, Float, Float)
+parseWeight :: a -> Get (Bone, Offset)
 parseWeight _ = do
-    ix <- getWord32le
-    x <- getWord32le
-    y <- getWord32le
-    z <- getWord32le
-    weight <- getWord32le
-    return (ix,x,y,z,weight)
+    ix <- fromIntegral <$> getWord32le
+    x <- CF.wordToFloat <$> getWord32le
+    y <- CF.wordToFloat <$> getWord32le
+    z <- CF.wordToFloat <$> getWord32le
+    weight <- CF.wordToFloat <$> getWord32le
+    let weight' = realToFrac weight
+    return ((ix,weight'),(x,y,z))
 
 parseCollapses (_,n,_,_,_,_) = mapM parseCollapse [1..n]
-parseCollapse _ = getWord32le
+parseCollapse _ = fromIntegral <$> getWord32le
 
 createMesh ss ts vs ws cs =
-    
+    let surfaces = createSurfaces ss ts vs 
+        (bones, offsets) = List.unzip ws
+    in Mesh surfaces offsets bones
 
-createSurfaces (s:ss) (t:ts) (v:vs) (c:cs) = 
-    (createSurface s t v c):createMesh ss ts vs cs
+createSurfaces (s:ss) (t:ts) (v:vs) = 
+    (createSurface s t v):createSurfaces ss ts vs
+createSurfaces [] _ _ = []
 
-createSurface s@(num, numV, numT, _, _, _) ts vs cs =
-  Surface {
-    surfaceNum=num,
-    surfNumV=numV,
-    surfNumT=numT,
-    tris=listArray $ concat $ map (\(x,y,z) -> x:y:z:[]) ts,
-    normals=listArray $ concat $ map (\(_,_,x,y,z,_,_) -> x:y:z:[]) vs,
-    textureCoords=listArray $ concat $ map (\(u,v,_,_,_,_,_) -> u:v:[]) vs,
-    collapseMap=cs
-   }
+createSurface s@(num, numV, numT, _, _, _) ts vs =
+  let ns = map (\(_,n,_,_) -> n) vs
+      uvs = map (\(u,_,_,_) -> u) vs
+      vertD = map (\(_,_,i,first) -> (i,first)) vs
+  in Surface num numV numT ts ns uvs vertD
 
+parseFile :: FileName -> IO Mesh
+parseFile path = do
+    fileMap <- L.fullFileMap
+    fileStr <- L.readPath fileMap path
+    return $ parseMesh fileStr
 
+showFile :: Mesh -> IO String
+showFile mesh = return $ show mesh
