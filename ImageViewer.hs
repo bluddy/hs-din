@@ -113,20 +113,22 @@ render tex = do
 
   GL.textureBinding Texture2D $= Just tex
   GL.renderPrimitive GL.Quads $ do
-       GL.texCoord (GL.TexCoord2 0 (0::GLfloat))
-       GL.vertex (GL.Vertex3 (-1) (-1) (1::GLfloat)) -- bottom left of quad (Front)
-       GL.texCoord (GL.TexCoord2 1 (0::GLfloat))
-       GL.vertex (GL.Vertex3 1 (-1) (1::GLfloat)) -- bottom right of quad (Front)
-       GL.texCoord (GL.TexCoord2 1 (1::GLfloat))
-       GL.vertex (GL.Vertex3 1 1 (1::GLfloat)) -- top right of quad (Front)
-       GL.texCoord (GL.TexCoord2 0 (1::GLfloat))
-       GL.vertex (GL.Vertex3 (-1) 1 (1::GLfloat)) -- top left of quad (Front) 
+       GL.texCoord $ coord2 0 0
+       GL.vertex $ vertex3 (-1) (-1) 1 -- bottom left of quad (Front)
+       GL.texCoord $ coord2 1 0
+       GL.vertex $ vertex3 1 (-1) 1    -- bottom right of quad (Front)
+       GL.texCoord $ coord2 1 1
+       GL.vertex $ vertex3 1 1 1       -- top right of quad (Front)
+       GL.texCoord $ coord2 0 1
+       GL.vertex $ vertex3 (-1) 1 1    -- top left of quad (Front) 
  
 fileExt filename = map toUpper $ drop (length filename - length "xxx") filename
  
 vertex3 :: GLfloat -> GLfloat -> GLfloat -> GL.Vertex3 GLfloat
 vertex3 = GL.Vertex3
  
- 
 color3 :: GLfloat -> GLfloat -> GLfloat -> GL.Color3 GLfloat
 color3 = GL.Color3
+
+coord2 :: GLfloat -> GLfloat -> GL.TexCoord2 GLfloat
+coord2 = GL.TexCoord2
