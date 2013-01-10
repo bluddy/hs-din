@@ -15,8 +15,8 @@ data Index = Num Int
              deriving Show
 
 parseIndex :: Parser Index
-parseIndex = P.strC "entry" *> return Entry
-               <|> P.strC "exit" *> return Exit
+parseIndex = try(P.strC "entry" *> return Entry)
+               <|> try(P.strC "exit" *> return Exit)
                <|> (P.integer >>= \i -> return $ Num i)
 
 
