@@ -19,14 +19,18 @@ data Model = Model {
 
 loadModelFromFile :: FileName -> IO Model 
 loadModelFromFile path = do
+    putStrLn $ "Loading "++path
     fileMap <- L.fullFileMap
     fileStr <- L.readPath fileMap path
     let ml = ML.doParse $ BLC.unpack fileStr
         dir = ML.dir ml
+    putStrLn $ "Loading "++ML.skel ml
     skelStr <- L.readPath fileMap $ dir++(ML.skel ml)
     let skel = Skel.parseSkel skelStr
+    putStrLn $ "Loading "++ML.mesh ml
     meshStr <- L.readPath fileMap $ dir++(ML.mesh ml)
     let mesh = M.parseMesh meshStr
+    putStrLn $ "Loading "++ML.skin ml
     skinStr <- L.readPath fileMap $ dir++(ML.skin ml)
     let skin = Skin.doParse $ BLC.unpack skinStr
     return $ Model skel mesh skin (ML.objectType ml) []    
