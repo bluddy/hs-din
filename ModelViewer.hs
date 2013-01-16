@@ -13,26 +13,10 @@ import Foreign.C.String (peekCString)
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Storable (peek, sizeOf)
 import Foreign.Ptr (nullPtr, castPtr)
-
-strVShader = 
-  "#version 330\n\
-  \layout(location = 0) in vec4 position;\n\
-  \void main()\n\
-  \{\n\
-  \  gl_Position = position;\n\ 
-  \}"
   
-strFShader = 
-  "#version 330\n\
-  \out vec4 outputColor;\n\
-  \void main()\n\
-  \{\n\
-  \  outputColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);\n\
-  \}\n"
-
 initProg = do
-  vs <- S.createShader S.VertexType strVShader
-  fs <- S.createShader S.FragmentType strFShader
+  vs <- S.shaderFromFile S.VertexType "basic.vert"
+  fs <- S.shaderFromFile S.FragmentType "basic.frag"
   let shaders = vs:[fs]
   prog <- S.createProgram shaders
   S.deleteShaders shaders

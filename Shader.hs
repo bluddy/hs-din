@@ -1,5 +1,6 @@
 module Shader where
 
+import Global
 import Control.Monad (forM)
 import Graphics.Rendering.OpenGL.Raw
 import Foreign.C.String (withCString, peekCString)
@@ -7,8 +8,14 @@ import Foreign.Marshal.Utils (with)
 import Foreign.Marshal.Alloc (alloca, allocaBytes)
 import Foreign.Ptr (nullPtr, castPtr)
 import Foreign.Storable (peek)
+import System.FilePath.Posix (pathSeparator)
 
 data ShaderType = VertexType | GeometryType | FragmentType
+
+shaderFromFile :: ShaderType -> FileName -> IO GLuint
+shaderFromFile typ name = do
+  str <- readFile $ "Shaders" ++ [pathSeparator] ++ name
+  createShader typ str
 
 createShader :: ShaderType -> String -> IO GLuint
 createShader sType strFile = do
